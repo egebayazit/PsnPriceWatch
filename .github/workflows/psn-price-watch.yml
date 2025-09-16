@@ -1,43 +1,56 @@
-﻿name: psn-price-watch
+﻿name: PSN Price Watch
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # 06:00 UTC = 09:00 TRT
+    - cron: "0 6 * * *"   # daily 06:00 UTC (09:00 TRT)
   workflow_dispatch:       # allow manual trigger
 
+permissions:
+  contents: read
+
+concurrency:
+  group: psn-price-watch
+  cancel-in-progress: true
+
 jobs:
-  run:
+  watch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Build watchlist (Apify)
+      - name: Build watchlist (Apify optional)
         env:
-          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}           # optional
+          APIFY_ACTOR_ID: ${{ secrets.APIFY_ACTOR_ID }}     # optional (only if you use a specific actor)
         run: python scripts/apify_resolve.py
 
-      - name: Fetch prices (PlatPrices, TR)
+      - name: Fetch prices (live if secrets present; otherwise mock)
         env:
-          PLAT_KEY: ${{ secrets.PLAT_KEY }}
+          PLAT_API_URL: ${{ secrets.PLAT_API_URL }}         # optional; set for live mode
+          PLAT_KEY: ${{ secrets.PLAT_KEY }}                 # optional; set for live mode
           REGION: TR
         run: python scripts/fetch_prices.py
 
-      - name: Diff & Notify (Discord optional)
-        env:
-          DISCORD_WEBHOOK: ${{ secrets/DISCORD_WEBHOOK }}
+      - name: Diff and write Markdown report
         run: python scripts/diff_report.py
+        # When you add Discord notifications inside diff_report.py,
+        # pass: env: { DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }} }
 
-      - name: Upload report artifact
+      - name: Upload reports artifact
         uses: actions/upload-artifact@v4
         with:
-          name: reports
-          path: reports/*.md
+          name: psn-price-reports
+          path: reports/
+          retention-days: 14

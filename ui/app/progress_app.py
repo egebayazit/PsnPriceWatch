@@ -1,4 +1,4 @@
-# ui/app/progress_app_gallery.py
+# ui/app/progress_app.py
 import re
 from pathlib import Path
 
